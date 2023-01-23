@@ -1,6 +1,7 @@
 package urlshort
 
 import (
+	"gopkg.in/yaml.v3"
 	"net/http"
 )
 
@@ -11,8 +12,14 @@ import (
 // If the path is not provided in the map, then the fallback
 // http.Handler will be called instead.
 func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.HandlerFunc {
-	//	TODO: Implement this...
-	return nil
+	return func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if dest, ok := pathsToUrls[path]; ok {
+			http.Redirect(w, r, dest, http.StatusFound)
+			return
+		}
+		fallback.ServeHTTP(w, r)
+	}
 }
 
 // YAMLHandler will parse the provided YAML and then return
@@ -23,8 +30,8 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 //
 // YAML is expected to be in the format:
 //
-//     - path: /some-path
-//       url: https://www.some-url.com/demo
+//   - path: /some-path
+//     url: https://www.some-url.com/demo
 //
 // The only errors that can be returned all related to having
 // invalid YAML data.
@@ -33,5 +40,33 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 // a mapping of paths to urls.
 func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
 	// TODO: Implement this...
-	return nil, nil
+	//unmarshall Yaml
+	pathURLS, err := parseYml(yml)
+	if err != nil {
+		return nil, err
+	}
+	pathsToMap := pathsToMap(pathURLS)
+	return MapHandler(pathsToMap, fallback), nil
+}
+
+func parseYml(data []byte) ([]PathURL, error) {
+	var paths []PathURL
+	err := yaml.Unmarshal(data, &paths)
+	if err != nil {
+		return nil, err
+	}
+	return paths, nil
+}
+
+func pathsToMap(paths []PathURL) map[string]string {
+	pathsMap := make(map[string]string)
+	for _, path := range paths {
+		pathsMap[path.Path] = path.Url
+	}
+	return pathsMap
+}
+
+type PathURL struct {
+	Path string `yaml:"path"`
+	Url  string `yaml:"url"`
 }
